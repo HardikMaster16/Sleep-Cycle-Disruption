@@ -1,0 +1,24 @@
+{
+    "feature_columns": [
+        "magnitude_range",
+        "magnitude_max",
+        "magnitude_min",
+        "dynamic_mean",
+        "dynamic_std",
+        "dynamic_max",
+        "movement_change_mean",
+        "movement_change_std",
+        "movement_change_max",
+        "movement_energy",
+        "strong_movement_ratio",
+        "x_std",
+        "y_std",
+        "z_std"
+    ],
+    "threshold": 0.597961084401047,
+    "n_trees": 200,
+    "sample_size": 256,
+    "random_seed": 42,
+    "threshold_percentile": 95,
+    "description": "Extended Isolation Forest for detecting anomalous sleep-related accelerometer movement patterns."
+}

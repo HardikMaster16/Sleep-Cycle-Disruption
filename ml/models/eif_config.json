@@ -1,0 +1,32 @@
+{
+    "model": "Extended Isolation Forest",
+    "eif_version": "1.0.2",
+    "n_trees": 200,
+    "sample_size": 256,
+    "extension_level": 18,
+    "n_features": 19,
+    "feature_columns": [
+        "x_mean",
+        "x_std",
+        "y_mean",
+        "y_std",
+        "z_mean",
+        "z_std",
+        "magnitude_mean",
+        "magnitude_std",
+        "magnitude_min",
+        "magnitude_max",
+        "magnitude_range",
+        "dynamic_mean",
+        "dynamic_std",
+        "dynamic_max",
+        "movement_change_mean",
+        "movement_change_std",
+        "movement_change_max",
+        "movement_energy",
+        "strong_movement_ratio"
+    ],
+    "threshold_percentile": 95,
+    "threshold": 0.5804951091263468,
+    "random_seed": 42
+}
