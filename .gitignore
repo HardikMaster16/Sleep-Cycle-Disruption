@@ -1,3 +1,4 @@
+
 # Python
 __pycache__/
 *.py[cod]
@@ -6,7 +7,6 @@ __pycache__/
 # Virtual environments
 .venv/
 .venv-1/
-venv/
 env/
 
 # Jupyter
@@ -26,7 +26,6 @@ Thumbs.db
 .vscode/
 
 # Environment variables
-.env
 .env.*
 
 # Python packaging

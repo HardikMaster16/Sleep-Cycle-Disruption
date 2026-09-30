@@ -1,6 +1,4 @@
-import "./App.css";
 import { useState } from "react";
-
 import {
   LineChart,
   Line,
@@ -8,67 +6,139 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
   ResponsiveContainer,
 } from "recharts";
 
-const sleepData = [
-  { day: "Mon", hours: 7.2 },
-  { day: "Tue", hours: 6.5 },
-  { day: "Wed", hours: 8.1 },
-  { day: "Thu", hours: 7.0 },
-  { day: "Fri", hours: 6.8 },
-  { day: "Sat", hours: 8.3 },
-  { day: "Sun", hours: 7.7 },
-];
+import "./App.css";
+
+function formatElapsedTime(seconds) {
+  const totalSeconds = Math.max(0, Math.round(seconds));
+
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+
+  return [
+    hours > 0 ? String(hours).padStart(2, "0") : null,
+    String(minutes).padStart(2, "0"),
+    String(remainingSeconds).padStart(2, "0"),
+  ]
+    .filter(Boolean)
+    .join(":");
+}
 
 function App() {
-  const [showAnalysis, setShowAnalysis] = useState(false);
-  const [submittedData, setSubmittedData] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [predictions, setPredictions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showAllAnomalies, setShowAllAnomalies] = useState(false);
 
-  const [formData, setFormData] = useState({
-    sleepDuration: "",
-    sleepQuality: "",
-    movementLevel: "",
-    sleepStages: [],
-    bedtime: "",
-    wakeupTime: "",
-  });
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
+    setError("");
+    setPredictions([]);
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setSelectedFile(null);
+      setError("Please select a CSV file.");
+      return;
+    }
+
+    setSelectedFile(file);
   };
 
-  const handleStageChange = (event) => {
-    const { value, checked } = event.target;
+  const handleAnalyze = async () => {
+    if (!selectedFile) {
+      setError("Please choose an accelerometer CSV file first.");
+      return;
+    }
 
-    setFormData((previous) => ({
-      ...previous,
-      sleepStages: checked
-        ? [...previous.sleepStages, value]
-        : previous.sleepStages.filter((stage) => stage !== value),
-    }));
+    setLoading(true);
+    setError("");
+    setShowAllAnomalies(false);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await fetch(
+        "http://127.0.0.1:8000/predict",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.detail || "The movement analysis failed."
+        );
+      }
+
+      setPredictions(data.predictions || []);
+    } catch (err) {
+      setPredictions([]);
+      setError(
+        err.message ||
+          "Unable to connect to the movement analysis service."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  const totalEpochs = predictions.length;
 
-    setSubmittedData(formData);
-  };
+const anomalousEpochs = predictions.filter(
+  (item) => item.is_anomaly
+).length;
+
+const normalEpochs = totalEpochs - anomalousEpochs;
+
+const normalPercentage =
+  totalEpochs > 0
+    ? ((normalEpochs / totalEpochs) * 100).toFixed(1)
+    : "0.0";
+
+const anomalousPercentage =
+  totalEpochs > 0
+    ? ((anomalousEpochs / totalEpochs) * 100).toFixed(1)
+    : "0.0";
+
+const chartData = predictions.map((item) => ({
+  epoch: item.epoch,
+  time: formatElapsedTime(item.epoch * 30),
+  score: Number(item.anomaly_score),
+  threshold: Number(item.threshold),
+}));
+
+const anomalousPredictions = predictions.filter(
+  (item) => item.is_anomaly
+);
+
+const visibleAnomalies = showAllAnomalies
+  ? anomalousPredictions
+  : anomalousPredictions.slice(0, 5);
 
   return (
     <div className="app">
       <header className="header">
         <div>
           <h1>Sleep Cycle Monitor</h1>
-          <p>Sleep anomaly detection dashboard</p>
+          <p>Movement anomaly detection during sleep</p>
         </div>
 
-        <div className="status">
+        <div className="system-status">
           <span className="status-dot"></span>
           System Ready
         </div>
@@ -78,404 +148,401 @@ function App() {
 
         {/* SUMMARY */}
         <section className="summary-grid">
+
           <div className="card">
-            <p className="card-label">Sleep Duration</p>
-            <h2>7h 42m</h2>
-            <span className="card-info">Last recorded session</span>
+            <h3>Total Periods</h3>
+            <div className="metric">
+              {totalEpochs}
+            </div>
+            <p>30-second movement periods analyzed</p>
           </div>
 
           <div className="card">
-            <p className="card-label">Sleep Quality</p>
-            <h2>Good</h2>
-            <span className="card-info">Based on recorded movement</span>
+            <h3>Typical Movement</h3>
+            <div className="metric">
+              {normalEpochs}
+            </div>
+            <p>
+              {normalPercentage}% of analyzed periods
+            </p>
           </div>
 
           <div className="card">
-            <p className="card-label">Anomalies</p>
-            <h2>3</h2>
-            <span className="card-info">Detected this session</span>
+            <h3>Unusual Movement</h3>
+            <div className="metric">
+              {anomalousEpochs}
+            </div>
+            <p>
+              {anomalousPercentage}% of analyzed periods
+            </p>
           </div>
 
           <div className="card">
-            <p className="card-label">Model Status</p>
-            <h2>Ready</h2>
-            <span className="card-info">Anomaly detector available</span>
+            <h3>Model Status</h3>
+            <div className="metric">
+              Ready
+            </div>
+            <p>Isolation Forest available</p>
           </div>
+
         </section>
 
-        {/* USER INPUT */}
-        <section className="panel input-panel">
-          <div className="input-heading">
-            <div>
-              <h2>Enter Sleep Data</h2>
-              <p>
-                Enter your sleep information based on your experience.
-              </p>
-            </div>
-
-            <span className="input-badge">Manual Input</span>
-          </div>
-
-          <form onSubmit={handleSubmit}>
-
-            <div className="form-grid">
-
-              {/* Sleep Duration */}
-              <div className="form-group">
-                <label htmlFor="sleepDuration">
-                  🕐 Sleep Duration
-                </label>
-
-                <div className="input-with-unit">
-                  <input
-                    id="sleepDuration"
-                    type="number"
-                    name="sleepDuration"
-                    min="0"
-                    max="24"
-                    step="0.1"
-                    placeholder="Example: 7.5"
-                    value={formData.sleepDuration}
-                    onChange={handleChange}
-                    required
-                  />
-                  <span>hours</span>
-                </div>
-              </div>
-
-              {/* Sleep Quality */}
-              <div className="form-group">
-                <label htmlFor="sleepQuality">
-                  🛌 Sleep Quality
-                </label>
-
-                <select
-                  id="sleepQuality"
-                  name="sleepQuality"
-                  value={formData.sleepQuality}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">Select quality</option>
-                  <option value="Poor">Poor</option>
-                  <option value="Fair">Fair</option>
-                  <option value="Good">Good</option>
-                  <option value="Excellent">Excellent</option>
-                </select>
-              </div>
-
-              {/* Movement */}
-              <div className="form-group">
-                <label htmlFor="movementLevel">
-                  🏃 Movement / Activity Level
-                </label>
-
-                <select
-                  id="movementLevel"
-                  name="movementLevel"
-                  value={formData.movementLevel}
-                  onChange={handleChange}
-                  required
-                >
-                  <option value="">Select activity level</option>
-                  <option value="Low">Low</option>
-                  <option value="Moderate">Moderate</option>
-                  <option value="High">High</option>
-                </select>
-              </div>
-
-              {/* Bedtime */}
-              <div className="form-group">
-                <label htmlFor="bedtime">
-                  🌙 Bedtime
-                </label>
-
-                <input
-                  id="bedtime"
-                  type="time"
-                  name="bedtime"
-                  value={formData.bedtime}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              {/* Wake-up */}
-              <div className="form-group">
-                <label htmlFor="wakeupTime">
-                  ⏰ Wake-up Time
-                </label>
-
-                <input
-                  id="wakeupTime"
-                  type="time"
-                  name="wakeupTime"
-                  value={formData.wakeupTime}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-            </div>
-
-            {/* Sleep Stages */}
-            <div className="form-group sleep-stage-group">
-              <label>🌙 Sleep Stage</label>
-
-              <p className="field-description">
-                Select all stages that you experienced.
-              </p>
-
-              <div className="stage-options">
-
-                <label className="stage-option">
-                  <input
-                    type="checkbox"
-                    value="Light"
-                    checked={formData.sleepStages.includes("Light")}
-                    onChange={handleStageChange}
-                  />
-                  <span>Light</span>
-                </label>
-
-                <label className="stage-option">
-                  <input
-                    type="checkbox"
-                    value="Deep"
-                    checked={formData.sleepStages.includes("Deep")}
-                    onChange={handleStageChange}
-                  />
-                  <span>Deep</span>
-                </label>
-
-                <label className="stage-option">
-                  <input
-                    type="checkbox"
-                    value="REM"
-                    checked={formData.sleepStages.includes("REM")}
-                    onChange={handleStageChange}
-                  />
-                  <span>REM</span>
-                </label>
-
-                <label className="stage-option">
-                  <input
-                    type="checkbox"
-                    value="Awake"
-                    checked={formData.sleepStages.includes("Awake")}
-                    onChange={handleStageChange}
-                  />
-                  <span>Awake</span>
-                </label>
-
-              </div>
-            </div>
-
-            <button type="submit" className="analyze-button">
-              Analyze Sleep
-            </button>
-
-          </form>
-        </section>
-
-        {/* USER INPUT RESULT */}
-        {submittedData && (
-          <section className="panel result-panel">
-
-            <div className="result-header">
-              <div>
-                <h2>Sleep Data Summary</h2>
-                <p>Your entered information is shown below.</p>
-              </div>
-
-              <span className="result-badge">Input Received</span>
-            </div>
-
-            <div className="result-grid">
-
-              <div className="result-card">
-                <span>Sleep Duration</span>
-                <strong>{submittedData.sleepDuration} hours</strong>
-              </div>
-
-              <div className="result-card">
-                <span>Sleep Quality</span>
-                <strong>{submittedData.sleepQuality}</strong>
-              </div>
-
-              <div className="result-card">
-                <span>Movement / Activity</span>
-                <strong>{submittedData.movementLevel}</strong>
-              </div>
-
-              <div className="result-card">
-                <span>Bedtime</span>
-                <strong>{submittedData.bedtime}</strong>
-              </div>
-
-              <div className="result-card">
-                <span>Wake-up Time</span>
-                <strong>{submittedData.wakeupTime}</strong>
-              </div>
-
-              <div className="result-card">
-                <span>Sleep Stage</span>
-                <strong>
-                  {submittedData.sleepStages.length > 0
-                    ? submittedData.sleepStages.join(", ")
-                    : "Not selected"}
-                </strong>
-              </div>
-
-            </div>
-
-            <div className="backend-note">
-              <strong>Analysis Status</strong>
-              <p>
-                Your sleep data has been recorded successfully.
-                Advanced anomaly analysis will be available when the
-                backend model is connected.
-              </p>
-            </div>
-
-          </section>
-        )}
-
-        {/* CONTENT */}
-        <section className="content-grid">
-
-          {/* GRAPH */}
-          <div className="panel">
-            <h2>Sleep Overview</h2>
+        {/* UPLOAD */}
+        <section className="panel upload-panel">
+          <div>
+            <h2>Upload Movement Data</h2>
 
             <p>
-              Sleep duration recorded over the last 7 days.
+              Upload an accelerometer CSV containing
+              Timestamp, x, y, and z measurements.
             </p>
-
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={sleepData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis domain={[5, 9]} />
-                  <Tooltip />
-
-                  <Line
-                    type="monotone"
-                    dataKey="hours"
-                    strokeWidth={3}
-                    dot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
           </div>
 
-          {/* ANOMALY */}
-          <div className="panel">
-            <h2>Anomaly Detection</h2>
+          <span className="upload-badge">
+            CSV Input
+          </span>
 
-            <div className="anomaly-box">
-              <span className="anomaly-number">3</span>
+          <label className="upload-button">
+            Choose CSV File
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              hidden
+            />
+          </label>
 
-              <div>
-                <strong>Anomalies detected</strong>
+          {selectedFile && (
+            <div className="file-success">
+              <strong>Selected file:</strong>{" "}
+              {selectedFile.name}
+            </div>
+          )}
+
+          {error && (
+            <div className="error-message">
+              {error}
+            </div>
+          )}
+
+          <button
+            className="analyze-button"
+            onClick={handleAnalyze}
+            disabled={!selectedFile || loading}
+          >
+            {loading
+              ? "Analyzing Movement..."
+              : "Analyze Movement"}
+          </button>
+        </section>
+
+        {/* RESULTS */}
+        {totalEpochs > 0 && (
+          <>
+            <section className="panel results-panel">
+
+              <div className="results-header">
+                <div>
+                  <h2>Movement Analysis Results</h2>
+                  <p>
+                    Results generated from the uploaded
+                    accelerometer data.
+                  </p>
+                </div>
+
+                <span className="analysis-complete">
+                  Analysis Complete
+                </span>
+              </div>
+
+              <div className="result-summary-grid">
+
+                <div className="result-card">
+                  <span>Total Periods</span>
+                  <strong>{totalEpochs}</strong>
+                  <small>
+                    30-second periods analyzed
+                  </small>
+                </div>
+
+                <div className="result-card">
+                  <span>Typical Movement</span>
+                  <strong>{normalEpochs}</strong>
+                  <small>
+                    {normalPercentage}% of periods
+                  </small>
+                </div>
+
+                <div className="result-card">
+                  <span>Unusual Movement</span>
+                  <strong>{anomalousEpochs}</strong>
+                  <small>
+                    {anomalousPercentage}% of periods
+                  </small>
+                </div>
+
+              </div>
+
+              {/* USER-FRIENDLY EXPLANATION */}
+              <div className="model-explanation">
+
+                <h3>What does this mean?</h3>
 
                 <p>
-                  Review unusual movement events from the sleep session.
+                  The model identified{" "}
+                  <strong>
+                    {anomalousEpochs} unusual movement
+                    {anomalousEpochs === 1 ? " period" : " periods"}
+                  </strong>{" "}
+                  during the recording.
                 </p>
-              </div>
-            </div>
 
-            <div className="anomaly-table">
+                <p>
+                  An unusual movement period means the
+                  movement pattern was different from the
+                  patterns considered typical by the trained
+                  model.
+                </p>
 
-              <div className="table-header">
-                <span>Time</span>
-                <span>Movement</span>
-                <span>Type</span>
-                <span>Severity</span>
-              </div>
+                <p>
+                  This does <strong>not necessarily mean
+                  you woke up</strong>. The result indicates
+                  unusual movement, not a confirmed
+                  awakening or sleep disorder.
+                </p>
 
-              <div className="table-row">
-                <span>01:42 AM</span>
-                <span>High</span>
-                <span>Restless Movement</span>
-                <span className="severity-medium">
-                  Moderate
-                </span>
               </div>
 
-              <div className="table-row">
-                <span>03:18 AM</span>
-                <span>Low</span>
-                <span>Sleep Duration</span>
-                <span className="severity-low">
-                  Low
-                </span>
-              </div>
+            </section>
 
-              <div className="table-row">
-                <span>05:06 AM</span>
-                <span>High</span>
-                <span>Repeated Movement</span>
-                <span className="severity-medium">
-                  Moderate
-                </span>
-              </div>
+            {/* GRAPH + TABLE */}
+            <section className="content-grid">
 
-            </div>
+              <div className="panel">
 
-            <button
-              className="primary-button"
-              onClick={() => setShowAnalysis(!showAnalysis)}
-            >
-              {showAnalysis ? "Hide Analysis" : "View Analysis"}
-            </button>
+                <h2>Movement Pattern Over Time</h2>
 
-            {showAnalysis && (
-              <div className="analysis-panel">
+                <p>
+                  The graph shows how unusual each
+                  30-second movement period was during the
+                  recording.
+                </p>
 
-                <h3>Sleep Analysis</h3>
+                <div className="chart-container">
 
-                <div className="analysis-item">
-                  <strong>Anomaly 1</strong>
-                  <p>
-                    Unusual movement detected during sleep.
-                  </p>
-                  <span>Severity: Moderate</span>
+                  <ResponsiveContainer
+                    width="100%"
+                    height={420}
+                  >
+                    <LineChart
+                      data={chartData}
+                      margin={{
+                        top: 20,
+                        right: 20,
+                        left: 10,
+                        bottom: 20,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+
+                      <XAxis
+                        dataKey="time"
+                        interval="preserveStartEnd"
+                        label={{
+                          value:
+                            "Time into recording",
+                          position: "insideBottom",
+                          offset: -10,
+                        }}
+                      />
+
+                      <YAxis
+                        domain={[0, "auto"]}
+                        label={{
+                          value:
+                            "Movement anomaly score",
+                          angle: -90,
+                          position: "insideLeft",
+                        }}
+                      />
+
+                      <Tooltip
+                        formatter={(value, name) => {
+                          if (name === "score") {
+                            return [
+                              Number(value).toFixed(4),
+                              "Movement score",
+                            ];
+                          }
+
+                          if (name === "threshold") {
+                            return [
+                              Number(value).toFixed(4),
+                              "Detection threshold",
+                            ];
+                          }
+
+                          return [value, name];
+                        }}
+                        labelFormatter={(label) =>
+                          `Time: ${label}`
+                        }
+                      />
+
+                      <ReferenceLine
+                        y={
+                          predictions[0]?.threshold ??
+                          0
+                        }
+                        strokeDasharray="5 5"
+                        label="Detection threshold"
+                      />
+
+                      <Line
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#2f80c9"
+                        strokeWidth={2}
+                        dot={false}
+                        name="Movement score"
+                      />
+
+                    </LineChart>
+                  </ResponsiveContainer>
+
                 </div>
 
-                <div className="analysis-item">
-                  <strong>Anomaly 2</strong>
-                  <p>
-                    Sleep duration variation detected.
-                  </p>
-                  <span>Severity: Low</span>
-                </div>
-
-                <div className="analysis-item">
-                  <strong>Anomaly 3</strong>
-                  <p>
-                    Repeated movement pattern detected.
-                  </p>
-                  <span>Severity: Moderate</span>
-                </div>
-
-                <div className="analysis-summary">
-                  <strong>Overall Result</strong>
+                <div className="chart-explanation">
+                  <strong>
+                    How to read this graph:
+                  </strong>
 
                   <p>
-                    The system detected 3 unusual sleep patterns.
-                    Further monitoring is recommended.
+                    Points above the detection threshold
+                    represent movement periods that the
+                    model classified as unusual.
                   </p>
                 </div>
 
+              </div>
+
+              {/* ANOMALY TABLE */}
+              <div className="panel">
+
+                <h2>Unusual Movement Periods</h2>
+
+                <div className="anomaly-count-box">
+                  <strong>
+                    {anomalousEpochs}
+                  </strong>
+
+                  <div>
+                    <h3>
+                      Unusual periods detected
+                    </h3>
+
+                    <p>
+                      These periods had movement patterns
+                      that crossed the model's detection
+                      threshold.
+                    </p>
+                  </div>
+                </div>
+
+                {anomalousPredictions.length > 0 ? (
+                  <>
+                    <div className="table-wrapper">
+
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Time</th>
+                            <th>Movement Score</th>
+                            <th>Result</th>
+                          </tr>
+                        </thead>
+
+                      <tbody>
+                        {visibleAnomalies.map((item) => (
+                          <tr key={item.epoch}>
+
+                            <td>
+                              {formatElapsedTime(item.epoch * 30)}
+                            </td>
+
+                            <td>
+                              {Number(item.anomaly_score).toFixed(4)}
+                            </td>
+
+                            <td>
+                            <strong>
+                              Unusual movement
+                            </strong>
+                          </td>
+
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                </div>
+
+                {anomalousPredictions.length > 5 && (
+                  <div className="anomaly-toggle">
+
+                    {!showAllAnomalies ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllAnomalies(true)}
+                        className="see-more-button"
+                      >
+                        See More
+                        <span>
+                          ({anomalousPredictions.length - 5} more)
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllAnomalies(false)}
+                        className="see-more-button"
+                      >
+                        See Less
+                      </button>
+                    )}
+
+                   </div>
+                )}
+              </>
+            ) : (
+              <div className="no-anomalies">
+                No unusual movement periods were detected.
               </div>
             )}
 
-          </div>
+              </div>
 
-        </section>
+            </section>
+          </>
+        )}
+
+        {/* BEFORE ANALYSIS */}
+        {totalEpochs === 0 && !loading && (
+          <section className="panel empty-state">
+
+            <h2>
+              Your movement analysis will appear here
+            </h2>
+
+            <p>
+              Upload an accelerometer CSV and select
+              <strong> Analyze Movement </strong>
+              to see movement patterns and unusual
+              periods detected by the model.
+            </p>
+
+          </section>
+        )}
 
       </main>
     </div>
