@@ -35,3 +35,10 @@ build/
 
 # Large trained ML model
 ML/models/extended_isolation_forest.joblib
+
+# Frontend dependencies
+frontend/node_modules/
+
+# Vite cache/build output
+frontend/node_modules/.vite/
+frontend/dist/
