@@ -12,20 +12,16 @@ import {
 
 import "./App.css";
 
-function formatElapsedTime(seconds) {
-  const totalSeconds = Math.max(0, Math.round(seconds));
+function formatTimestamp(timestamp) {
+  if (!timestamp) return "--";
 
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const remainingSeconds = totalSeconds % 60;
+  const date = new Date(timestamp);
 
-  return [
-    hours > 0 ? String(hours).padStart(2, "0") : null,
-    String(minutes).padStart(2, "0"),
-    String(remainingSeconds).padStart(2, "0"),
-  ]
-    .filter(Boolean)
-    .join(":");
+  return date.toLocaleString("en-IN", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    hour12: false,
+  });
 }
 
 function App() {
@@ -117,7 +113,7 @@ const anomalousPercentage =
 
 const chartData = predictions.map((item) => ({
   epoch: item.epoch,
-  time: formatElapsedTime(item.epoch * 30),
+  time: formatTimestamp(item.timestamp),
   score: Number(item.anomaly_score),
   threshold: Number(item.threshold),
 }));
@@ -467,7 +463,7 @@ const visibleAnomalies = showAllAnomalies
                           <tr key={item.epoch}>
 
                             <td>
-                              {formatElapsedTime(item.epoch * 30)}
+                              {formatTimestamp(item.timestamp)}
                             </td>
 
                             <td>
