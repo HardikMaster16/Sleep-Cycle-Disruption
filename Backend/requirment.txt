@@ -7,3 +7,4 @@ pandas
 scikit-learn
 joblib
 python-multipart
+eif==1.0.2
