@@ -11,6 +11,7 @@ import {
 } from "recharts";
 
 import "./App.css";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function formatTimestamp(timestamp) {
   if (!timestamp) return "--";
@@ -66,7 +67,7 @@ function App() {
       formData.append("file", selectedFile);
 
       const response = await fetch(
-        "http://127.0.0.1:8000/predict",
+        `${API_URL}/predict`,
         {
           method: "POST",
           body: formData,
