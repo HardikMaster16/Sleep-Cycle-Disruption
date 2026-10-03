@@ -12,7 +12,7 @@ import pandas as pd
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 PROJECT_DIR = BACKEND_DIR.parent
 
-ML_SRC_DIR = PROJECT_DIR / "ML" / "src"
+ML_SRC_DIR = PROJECT_DIR / "ml" / "src"
 
 if str(ML_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(ML_SRC_DIR))
